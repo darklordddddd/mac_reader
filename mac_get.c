@@ -69,6 +69,7 @@ static ssize_t pci_read(struct file *file,
 		return 0;
 	}
 
+	//красиво выводим MAC
 	for (i = 0, j = 0; i < (MAC_ADDR_LEN << 1); i++, j += 3) {
 		temp[j] = num_to_char((mac_arr[i] >> 4) & 0xF);
 		temp[j + 1] = num_to_char(mac_arr[i] & 0xF);
@@ -97,6 +98,7 @@ static int pci_probe(struct pci_dev *dev, const struct pci_device_id *id)
 
 	pr_info("MAC_reader: in probe()\n");
 
+	//инициализируем cdev
 	cdev_init(&mac_cdev, &pci_ops);
 	mac_cdev.owner = THIS_MODULE;
 	ret = cdev_add(&mac_cdev, mac_dev, 1);
@@ -106,12 +108,16 @@ static int pci_probe(struct pci_dev *dev, const struct pci_device_id *id)
 		return -EBUSY;
 	}
 
+	//включаем устройство PCI
 	if (pci_enable_device(dev)) {
 		dev_err(&(dev->dev), "Can't enable PCI device\n");
 		pci_disable_device(dev);
 		return -EBUSY;
 	}
 
+	//запрос всех областей
+	//область характеризуемся базовым
+	//адресом и размером
 	if (pci_request_regions(dev, DEVICE_NAME) < 0) {
 		dev_err(&(dev->dev), "Can't request BARs\n");
 		cdev_del(&mac_cdev);
@@ -120,6 +126,8 @@ static int pci_probe(struct pci_dev *dev, const struct pci_device_id *id)
 		return -EBUSY;
 	}
 
+	//область с 0-ым базовым адресом -
+	//область I/O
 	if ((pci_resource_flags(dev, IO_BAR) & IORESOURCE_IO)
 		!= IORESOURCE_IO) {
 		dev_err(&(dev->dev), "IO_BAR isn't an I/O region\n");
@@ -127,20 +135,25 @@ static int pci_probe(struct pci_dev *dev, const struct pci_device_id *id)
 		return -1;
 	}
 
+	//выделяем место для MAC
 	mac_arr = kmalloc_array(6, sizeof(char), GFP_KERNEL);
 	if (mac_arr == NULL)
 		return -1;
 
 	//пробуем читать MAC
+
+	//берем адрес области
 	start = pci_resource_start(dev, IO_BAR);
 
 	for (i = 0; i < MAC_ADDR_LEN; i++) {
 		unsigned short value;
+		//пишем в РА адрес регистра MAC
 		outw(MAC_ADDR + i, start + RAP_REG);
+		//читаем из РД
 		value = inw(start + RDP_REG);
+		//вытаскиваем байты
 		mac_arr[i << 1] = value & 0xFF;
 		mac_arr[(i << 1) + 1] = (value >> 8) & 0xFF;
-		//pr_info("%02x - %02x\n", (value >> 8) & 0xFF, value & 0xFF);
 	}
 
 	return 0;
@@ -164,6 +177,7 @@ static int __init mac_device_init(void)
 
 	pr_info("MAC_reader: init\n");
 
+	//выделяем место для симв. у-ва
 	ret = alloc_chrdev_region(&mac_dev, 0, 1, DEVICE_NAME);
 	if (ret < 0) {
 		pr_alert("MAC_reader: Failed to get a major number\n");
@@ -172,6 +186,7 @@ static int __init mac_device_init(void)
 	pr_info("MAC_reader: major %d and minor %d\n",
 	MAJOR(mac_dev), MINOR(mac_dev));
 
+	//регистрируем PCI-устройство
 	ret = pci_register_driver(&pci_driver);
 	if (ret < 0) {
 		unregister_chrdev_region(mac_dev, 1);
@@ -184,8 +199,11 @@ static int __init mac_device_init(void)
 
 static void __exit mac_device_exit(void)
 {
+	//освобождаем массив с MAC
 	kfree(mac_arr);
+	//отключаем регистрацию
 	pci_unregister_driver(&pci_driver);
+	//освобождаем симв. у-во
 	cdev_del(&mac_cdev);
 	unregister_chrdev_region(mac_dev, 1);
 	pr_info("MAC_reader: uninit completed\n");
