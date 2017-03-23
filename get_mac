@@ -1,0 +1,11 @@
+#!/bin/bash
+make
+rmmod pcnet32
+insmod mac_get.ko
+mknod /dev/mac_dr c 245 0
+chmod 777 /dev/mac_dr
+cat /dev/mac_dr
+rmmod mac_get
+insmod /lib/modules/4.9.10/kernel/drivers/net/ethernet/amd/pcnet32.ko
+rm /dev/mac_dr
+

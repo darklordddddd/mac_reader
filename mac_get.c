@@ -19,7 +19,7 @@
 
 static dev_t mac_dev;
 static struct cdev mac_cdev;
-short *mac_arr;
+char *mac_arr;
 static int eof_flag;
 
 // (VendorID, DeviceID)
@@ -93,7 +93,6 @@ static int pci_probe(struct pci_dev *dev, const struct pci_device_id *id)
 {
 	int ret;
 	resource_size_t start;
-	unsigned short value;
 	int i;
 
 	pr_info("MAC_reader: in probe()\n");
@@ -136,6 +135,7 @@ static int pci_probe(struct pci_dev *dev, const struct pci_device_id *id)
 	start = pci_resource_start(dev, IO_BAR);
 
 	for (i = 0; i < MAC_ADDR_LEN; i++) {
+		unsigned short value;
 		outw(MAC_ADDR + i, start + RAP_REG);
 		value = inw(start + RDP_REG);
 		mac_arr[i << 1] = value & 0xFF;
@@ -151,7 +151,7 @@ static void pci_remove(struct pci_dev *dev)
 	pci_release_regions(dev);
 }
 
-static const struct pci_driver pci_driver = {
+static struct pci_driver pci_driver = {
 	.name		= DEVICE_NAME,
 	.id_table	= pci_ids,
 	.probe		= pci_probe,
@@ -196,4 +196,4 @@ module_exit(mac_device_exit);
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("PCI MAC address reader");
 MODULE_AUTHOR("Sergey Samokhvalov/Ilya Vedmanov");
-\ No newline at end of file
+
